@@ -50,36 +50,6 @@ def approx_standard_normal_cdf(x):
     """
     return 0.5 * (1.0 + th.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * th.pow(x, 3))))
 
-
-def discretized_gaussian_log_likelihood(x, *, means, log_scales):
-    """
-    Compute the log-likelihood of a Gaussian distribution discretizing to a
-    given image.
-
-    :param x: the target images. It is assumed that this was uint8 values,
-              rescaled to the range [-1, 1].
-    :param means: the Gaussian mean Tensor.
-    :param log_scales: the Gaussian log stddev Tensor.
-    :return: a tensor like x of log probabilities (in nats).
-    """
-    assert x.shape == means.shape == log_scales.shape
-    centered_x = x - means
-    inv_stdv = th.exp(-log_scales)
-    plus_in = inv_stdv * (centered_x + 1.0 / 255.0)
-    cdf_plus = approx_standard_normal_cdf(plus_in)
-    min_in = inv_stdv * (centered_x - 1.0 / 255.0)
-    cdf_min = approx_standard_normal_cdf(min_in)
-    log_cdf_plus = th.log(cdf_plus.clamp(min=1e-12))
-    log_one_minus_cdf_min = th.log((1.0 - cdf_min).clamp(min=1e-12))
-    cdf_delta = cdf_plus - cdf_min
-    log_probs = th.where(
-        x < -0.999,
-        log_cdf_plus,
-        th.where(x > 0.999, log_one_minus_cdf_min, th.log(cdf_delta.clamp(min=1e-12))),
-    )
-    assert log_probs.shape == x.shape
-    return log_probs
-
 def gaussian_density(x, *, means, log_scales):
     from torch.distributions import Normal
     normal_dist = Normal(means, log_scales.exp())

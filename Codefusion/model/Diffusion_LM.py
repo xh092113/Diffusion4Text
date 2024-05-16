@@ -180,6 +180,11 @@ class CrossAttention_Diffusion_LM(nn.Module):
             return scores
         else:
             raise NotImplementedError
+            
+    def decode(self, x, timesteps, src_input_ids, src_attention_mask, attention_mask=None,
+                answer_id=None, answer_mask=None, y=None, src_ids=None, src_mask=None):
+        
+        return h
 
     def forward(self, x, timesteps, src_input_ids, src_attention_mask, attention_mask=None,
                 answer_id=None, answer_mask=None, y=None, src_ids=None, src_mask=None):
