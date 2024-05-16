@@ -3,8 +3,10 @@ from torch import nn
 import numpy as np
 import math
 from transformers import (
-    BertModel,
-    BertConfig,
+    # BertModel,
+    # BertConfig,
+    AutoModelForSeq2SeqLM,
+    AutoConfig,
 )
 from model.CrossAttentionTransformers import BasicTransformerBlock
 
@@ -201,7 +203,8 @@ class CrossAttention_Diffusion_LM(nn.Module):
             out_channels,
             dropout=0,
             config=None,
-            config_name='bert-base-uncased',
+            # config_name='bert-base-uncased',
+            config_name="Salesforce/codet5p-220m-bimodal",
             vocab_size=None,
             init_pretrained=True,
             logits_mode=1,
@@ -218,18 +221,20 @@ class CrossAttention_Diffusion_LM(nn.Module):
         self.token_emb_type = token_emb_type
         self.fix_encoder = fix_encoder
 
-        cfg = BertConfig.from_pretrained(config_name)
-        cfg.num_hidden_layers = 6
-        self.passage_encoder = BertModel.from_pretrained(config_name, config=cfg)
-        # self.passage_encoder = BertModel.from_pretrained(
-        #     "/colab_space/Lin0/PROD/KDexp/pretrain_model/bert-base-uncased", config=cfg)
-
-
-
-
-        config = BertConfig.from_pretrained(config_name)
+        # cfg = BertConfig.from_pretrained(config_name)
+        # cfg.num_hidden_layers = 6
+        # self.passage_encoder = BertModel.from_pretrained(config_name, config=cfg)
+        # # self.passage_encoder = BertModel.from_pretrained(
+        # #     "/colab_space/Lin0/PROD/KDexp/pretrain_model/bert-base-uncased", config=cfg)
+        # config = BertConfig.from_pretrained(config_name)
+        config = AutoConfig.from_pretrained(config_name)
         config.hidden_dropout_prob = self.dropout
-        print(config)
+        # print(config)
+        self.passage_encoder=AutoModelForSeq2SeqLM.from_pretrained(
+            "Salesforce/codet5p-220m-bimodal",
+            trust_remote_code=True,
+        )
+        self.passage_encoder.requires_grad=False
 
         # trainable embedding layer
         self.word_embedding = nn.Embedding(vocab_size, self.in_channels)
@@ -246,6 +251,22 @@ class CrossAttention_Diffusion_LM(nn.Module):
         # share weight between lm_head and word_embedding
         with torch.no_grad():
             self.lm_head.weight = self.word_embedding.weight
+        #待办!!!!!!!!!!!!!!!!!!!!!!!!!分类头嘛, 倒是没问题, 但是我们需要在这下面加一个6层的decoder
+        #还要配以相应的loss
+        config.num_hidden_layers = 6
+        self.decoder = nn.ModuleList(
+            [
+                BasicTransformerBlock(
+                    dim=config.hidden_size,
+                    num_attention_heads=config.num_attention_heads,
+                    attention_head_dim=config.hidden_size // config.num_attention_heads,
+                    dropout=config.hidden_dropout_prob,
+                    cross_attention_dim=config.hidden_size,
+                    activation_fn="geglu",
+                )
+                for d in range(config.num_hidden_layers)
+            ]
+        )
 
         # self.word_embedding = nn.Embedding(vocab_size, self.in_channels)
         # self.lm_head = nn.Linear(self.in_channels, vocab_size)
@@ -279,8 +300,9 @@ class CrossAttention_Diffusion_LM(nn.Module):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        config.num_hidden_layers = 6
+        config.num_hidden_layers = 10
         # define cross attention transformer block(6 layer)
+        # 现在改成10了
         self.transformer_blocks = nn.ModuleList(
             [
                 BasicTransformerBlock(

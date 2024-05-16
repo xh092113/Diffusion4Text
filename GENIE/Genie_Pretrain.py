@@ -162,17 +162,18 @@ def main():
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
     logger.log("load tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+    # tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = AutoTokenizer.from_pretrained('Salesforce/codet5p-220m-bimodal')
 
     '''
     for s2s
     '''
-    dataname_list = ['book1','book2','book3','book4','book5',
-                'wiki1', 'wiki2', 'wiki3', 'wiki4', 'wiki5',
-                'stories1','stories2','stories3','stories4','stories5',
-                'openweb1','openweb2','openweb3','openweb4','openweb5',
-                'realnews1', 'realnews2', 'realnews3', 'realnews4', 'realnews5',
-                'realnews6', 'realnews7', 'realnews8', 'realnews9','realnews10']
+    # dataname_list = ['book1','book2','book3','book4','book5',
+    #             'wiki1', 'wiki2', 'wiki3', 'wiki4', 'wiki5',
+    #             'stories1','stories2','stories3','stories4','stories5',
+    #             'openweb1','openweb2','openweb3','openweb4','openweb5',
+    #             'realnews1', 'realnews2', 'realnews3', 'realnews4', 'realnews5',
+    #             'realnews6', 'realnews7', 'realnews8', 'realnews9','realnews10']
 
     # roll data list
     start_index = 0
