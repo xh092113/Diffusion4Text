@@ -1433,7 +1433,10 @@ class GaussianDiffusion:
             answer_mask = input_text['answer_mask'].long().to(t.device)
 
         context_hidden = model.encode(input_ids=p_input_ids, attention_mask=p_attention_mask)
-
+        
+        if input_text["task_type"] == "unsupervised_generation":
+            # Replace E_s with Gaussian noise in unsupervised generation task
+            context_hidden = th.randn_like(context_hidden)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    th.tensor([0]).to(x_start_mean.device),

@@ -174,6 +174,7 @@ def main():
     #             'openweb1','openweb2','openweb3','openweb4','openweb5',
     #             'realnews1', 'realnews2', 'realnews3', 'realnews4', 'realnews5',
     #             'realnews6', 'realnews7', 'realnews8', 'realnews9','realnews10']
+    dataname_list=["onlycpp"]
 
     # roll data list
     start_index = 0

@@ -6,25 +6,48 @@ import torch
 import jsonlines
 import numpy as np
 import random
+from datasets import load_dataset
+
+
+#请在这里添加从这个流式数据中采集下方所需格式的数据, 以及对数据的处理, 包括限制其长度, 剪切成snippet, padding到128长度
+#未来可以在这里实现同时返回一个identifier的属性, 中间包含一个列表, 作为Identifier的mask
+def GetDataFromStreaming(name):
+    max_number=100000
+    if(name=="onlycpp"):
+        ds = load_dataset(
+            "codeparrot/github-code", 
+            split="train", 
+            streaming=True, 
+            trust_remote_code=True, 
+            languages=["C++"], 
+            filter_languages=True
+        )
+        for step, src in enumerate(ds):
+            if(step==max_number):
+                break
+            src['code']
 
 
 def load_loop_pretrain_data(args, padding_mode, tokenizer, data_name = None):
     print("***** load " + data_name + " train src dataset*****")
 
-    path = os.path.join(args.data_path, data_name + '.npy')
-    input_id_list = np.load(path, allow_pickle=True)
+    # path = os.path.join(args.data_path, data_name + '.npy')
+    # input_id_list = np.load(path, allow_pickle=True)
 
-    # filter
-    input_id_list = np.array([input_id for input_id in input_id_list if np.count_nonzero(input_id) >= 30])
+    # # filter
+    # input_id_list = np.array([input_id for input_id in input_id_list if np.count_nonzero(input_id) >= 30])
 
     if padding_mode == 'max_len':
+        raise NotImplementedError
         dataset = Pre_dataset(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'conti_tgt':
+        raise NotImplementedError
         print("using new pretrain method...")
         dataset = Pre_dataset_type2(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'mix_conti_tgt':
         # Mixture of unsupervised code generation and extended CPD
         print("using mixed two pretrain method...")
+        input_id_list=GetDataFromStreaming(data_name)
         dataset = Pre_dataset_type_mix(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'block':
         print("padding block is under realization")
@@ -224,7 +247,7 @@ class Pre_dataset_type2(Dataset):
 
         return fn
 class Pre_dataset_type_mix(Dataset):
-    def __init__(self, tgt_id, tokenizer, mask_pro=0.3, maxlength=512, mask_mode='random'):
+    def __init__(self, tgt_id, tokenizer, mask_pro=0.3, maxlength=128, mask_mode='random'):
         self.tgt_id = tgt_id
         self.tokenizer = tokenizer
         self.maxlength = maxlength

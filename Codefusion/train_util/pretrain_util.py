@@ -173,7 +173,7 @@ class PretrainLoop:
                 # Use dataset with mixed tasks
                 train_data = load_loop_pretrain_data(
                     self.args,
-                    padding_mode='conti_tgt',
+                    padding_mode='mix_conti_tgt',
                     tokenizer=self.tokenizer,
                     data_name=data_name,
                 )
@@ -261,6 +261,7 @@ class PretrainLoop:
         t, weights = self.schedule_sampler.sample(batch['src_input_ids'].shape[0], self.device)
         # print("src_input_ids shape:", batch['src_input_ids'].shape)
         # print("tgt_input_ids shape:", batch['tgt_input_ids'].shape)
+        unsupervised_mask = torch.tensor([task_type == 'unsupervised_generation' for task_type in batch['task_type']], dtype=torch.bool)
         losses = self.diffusion.training_losses(self.model, batch, t)
 
         if isinstance(self.schedule_sampler, LossAwareSampler):
