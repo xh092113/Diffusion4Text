@@ -5,7 +5,7 @@ import math
 from transformers import (
     # BertModel,
     # BertConfig,
-    AutoModelForSeq2SeqLM,
+    T5EncoderModel,
     AutoConfig,
 )
 from model.CrossAttentionTransformers import BasicTransformerBlock
@@ -66,7 +66,7 @@ class CrossAttention_Diffusion_LM(nn.Module):
         config = AutoConfig.from_pretrained(config_name)
         config.hidden_dropout_prob = self.dropout
         # print(config)
-        self.passage_encoder=AutoModelForSeq2SeqLM.from_pretrained(
+        self.passage_encoder=T5EncoderModel.from_pretrained(
             "Salesforce/codet5p-220m-bimodal",
             trust_remote_code=True,
         )
@@ -181,13 +181,24 @@ class CrossAttention_Diffusion_LM(nn.Module):
         else:
             raise NotImplementedError
             
-    def decode(self, x, timesteps, src_input_ids, src_attention_mask, attention_mask=None,
-                answer_id=None, answer_mask=None, y=None, src_ids=None, src_mask=None):
-        
-        return h
+    def encode(self, src_input_ids, src_attention_mask):
+        if self.fix_encoder:
+            with torch.no_grad():
+                out = self.passage_encoder(input_ids=src_input_ids,
+                                                 attention_mask=src_attention_mask)
+                passage_hidden = out.last_hidden_state
+        else:
+            out = self.passage_encoder(input_ids=src_input_ids,
+                                       attention_mask=src_attention_mask)
+            passage_hidden = out.last_hidden_state + 0 * out.pooler_output.unsqueeze(1)
+        return passage_hidden
+            
+    def decode(self, hidden_states, passage_hidden):
+        for block in self.decoder:
+            hidden_states = block(hidden_states, passage_hidden)
+        return hidden_states
 
-    def forward(self, x, timesteps, src_input_ids, src_attention_mask, attention_mask=None,
-                answer_id=None, answer_mask=None, y=None, src_ids=None, src_mask=None):
+    def forward(self, x, timesteps, passage_hidden):
 
         # prepare embedding
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
@@ -199,37 +210,10 @@ class CrossAttention_Diffusion_LM(nn.Module):
         hidden_states = self.dropout(self.LayerNorm(emb_inputs))
         # encode embedding
         # print(emb_inputs.shape, attention_mask.shape)
-        if self.fix_encoder:
-            with torch.no_grad():
-                out = self.passage_encoder(input_ids=src_input_ids,
-                                                 attention_mask=src_attention_mask)
-                passage_hidden = out.last_hidden_state
-        else:
-            out = self.passage_encoder(input_ids=src_input_ids,
-                                       attention_mask=src_attention_mask)
-            passage_hidden = out.last_hidden_state + 0 * out.pooler_output.unsqueeze(1)
-
-        if answer_id is not None:
-            answer_hidden_states = hidden_states.clone()
-            answer_out = self.passage_encoder(input_ids=answer_id,
-                                              attention_mask=answer_mask)
-            answer_hidden = answer_out.last_hidden_state + 0 * answer_out.pooler_output.unsqueeze(1)
-            for block in self.transformer_blocks:
-                answer_hidden_states = block(answer_hidden_states, answer_hidden)
-
+        
         for block in self.transformer_blocks:
             hidden_states = block(hidden_states, passage_hidden)
-
-        if answer_id is not None:
-            # print("model_qg_forward...")
-            hidden_states = hidden_states + answer_hidden_states
 
         h = self.output_down_proj(hidden_states)
         h = h.type(x.dtype)
         return h
-
-
-
-
-
-

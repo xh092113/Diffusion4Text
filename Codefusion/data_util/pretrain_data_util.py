@@ -22,6 +22,10 @@ def load_loop_pretrain_data(args, padding_mode, tokenizer, data_name = None):
     elif padding_mode == 'conti_tgt':
         print("using new pretrain method...")
         dataset = Pre_dataset_type2(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
+    elif padding_mode == 'mix_conti_tgt':
+        # Mixture of unsupervised code generation and extended CPD
+        print("using mixed two pretrain method...")
+        dataset = Pre_dataset_type_mix(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'block':
         print("padding block is under realization")
         pass
@@ -217,6 +221,98 @@ class Pre_dataset_type2(Dataset):
             tgt_tensor = torch.cat([feature[1] for feature in features])
             return { "src_input_ids": src_tensor, "src_attention_mask": (src_tensor != 0).long(),
                      "tgt_input_ids": tgt_tensor, "tgt_attention_mask": (tgt_tensor != 0).long() }
+
+        return fn
+class Pre_dataset_type_mix(Dataset):
+    def __init__(self, tgt_id, tokenizer, mask_pro=0.3, maxlength=512, mask_mode='random'):
+        self.tgt_id = tgt_id
+        self.tokenizer = tokenizer
+        self.maxlength = maxlength
+        self.mask_pro = mask_pro
+        self.tgtmaxlength = int(maxlength * mask_pro) + 1
+        self.mask_token_index = self.tokenizer.mask_token_id
+        self.pad_token_index = self.tokenizer.pad_token_id
+        self.all_special_token = self.tokenizer.all_special_ids
+        self.dataset_len = self.__len__()
+        self.task_order = torch.randperm(self.dataset_len)
+
+
+    def __getitem__(self, index):
+        index = self.task_order[index]
+        src_input_ids = None
+        tgt_input_ids = None
+        task_type = None
+
+        if index < self.dataset_len:
+            task_type = "CPD"
+            tgt_example = self.tgt_id[index]
+            # src_input_ids = tgt_example.tolist()
+            tgt_input_ids = (torch.from_numpy(tgt_example)).long()
+            src_input_ids = tgt_input_ids.clone()
+            id_len = torch.nonzero(src_input_ids).shape[0]
+
+            # mask_span_num = int((id_len * self.mask_pro) // self.span_size) + 1
+            mask_span_len = int(id_len * self.mask_pro)
+            # print("mask_span_num:", mask_span_num)
+            mask_index = random.randint(0, id_len-mask_span_len-1)
+
+            tgt_input_ids = src_input_ids.tolist()[mask_index:mask_index+mask_span_len]
+
+            src_input_ids[mask_index] = self.mask_token_index
+
+            # print("mask_index:", mask_index)
+            # mask_span_len
+            # mask_id_mask = torch.full(src_input_ids.shape, False, dtype=torch.bool)
+            retain_id_mask = torch.full(src_input_ids.shape, True, dtype=torch.bool)
+            # mask_id_mask[mask_index] = True
+
+            # del_index = mask_index.tolist()
+            # del_index = list(range(mask_index + 1, mask_index + mask_span_len)) #为什么这里起点+1？
+            del_index = list(range(mask_index, mask_index + mask_span_len))
+            del_index = torch.from_numpy(np.array(del_index))
+            retain_id_mask[del_index] = False
+            # src_input_ids[mask_id_mask] = self.mask_token_index
+            src_input_ids = src_input_ids[retain_id_mask].tolist()
+            # print("src_input_ids1:", len(src_input_ids))
+            src_input_ids = src_input_ids + [self.pad_token_index] * (self.maxlength - len(src_input_ids))
+            # print("src_input_ids2:", len(src_input_ids))
+            tgt_input_ids = tgt_input_ids + [self.pad_token_index] * (self.tgtmaxlength - len(tgt_input_ids))
+
+            src_input_ids = torch.from_numpy(np.array(src_input_ids)).long()
+            tgt_input_ids = torch.from_numpy(np.array(tgt_input_ids)).long()
+
+            src_input_ids = src_input_ids.unsqueeze(0)
+            tgt_input_ids = tgt_input_ids.unsqueeze(0)
+        else:
+            task_type = "unsupervised_generation"
+            tgt_example = self.tgt_id[index]
+            # src_input_ids = tgt_example.tolist()
+            tgt_input_ids = (torch.from_numpy(tgt_example)).long()
+            tgt_input_ids = tgt_input_ids.tolist()
+
+            src_input_ids = [self.pad_token_index] * self.maxlength
+            tgt_input_ids = tgt_input_ids + [self.pad_token_index] * (self.tgtmaxlength - len(tgt_input_ids))
+
+            src_input_ids = torch.from_numpy(np.array([src_input_ids])).long()
+            tgt_input_ids = torch.from_numpy(np.array(tgt_input_ids)).long()
+
+            src_input_ids = src_input_ids.unsqueeze(0)
+            tgt_input_ids = tgt_input_ids.unsqueeze(0)
+
+        return src_input_ids, tgt_input_ids, task_type
+
+    def __len__(self):
+        return len(self.tgt_id) * 2
+
+    @classmethod
+    def get_collate_fn(cls):
+        def fn(features):
+            src_tensor = torch.cat([feature[0] for feature in features])
+            tgt_tensor = torch.cat([feature[1] for feature in features])
+            task_type = [feature[1] for feature in features] # List of str "CPD" or "unsupervised_generation"
+            return { "src_input_ids": src_tensor, "src_attention_mask": (src_tensor != 0).long(),
+                     "tgt_input_ids": tgt_tensor, "tgt_attention_mask": (tgt_tensor != 0).long(),
+                      "task_type": task_type }
 
         return fn
 

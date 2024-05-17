@@ -40,7 +40,7 @@ def get_arguments():
     parser.add_argument('--dropout', type=float, default=0.1, help='')
     parser.add_argument("--learn_sigma", default=False, action="store_true", help="Whether to learning variance")
     parser.add_argument('--logits_mode', type=int, default=1, help='final logits mode of Diffusion model')
-    parser.add_argument('--vocab_size', type=int, default=30522, help='vocab size')
+    parser.add_argument('--vocab_size', type=int, default=32103, help='vocab size')
     parser.add_argument('--config_name', type=str, default='bert-base-uncased', help='')
     parser.add_argument('--token_emb_type', type=str, default='random', help='token embedding type')
     parser.add_argument("--init_pretrained", default=False, action="store_true", help="Whether to using pretrain BERT encoder")

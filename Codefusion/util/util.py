@@ -53,21 +53,7 @@ def create_model(
 ):
     print(f'creating model, based on {model_arch}')
 
-    if model_arch == 'transformer':
-
-        return Diffusion_LM(
-            in_channels=in_channel,
-            model_channels=model_channels,
-            out_channels=(out_channel if not learn_sigma else out_channel*2),
-            dropout=dropout,
-            config_name=config_name,
-            vocab_size=vocab_size,
-            logits_mode=logits_mode,
-            init_pretrained=init_pretrained,
-            token_emb_type=token_emb_type,
-        )
-
-    elif model_arch == 's2s_CAT':
+    if model_arch == 's2s_CAT':
 
         return CrossAttention_Diffusion_LM(
             in_channels=in_channel,

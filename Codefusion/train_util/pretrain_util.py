@@ -94,8 +94,10 @@ class PretrainLoop:
 
         self.checkpoint_path = checkpoint_path
         self.optimizer = AdamW(self.master_params, lr=self.lr, weight_decay=self.weight_decay)
+        # AdamW without decay, 到时候核对一遍是不是所有的trick都加完了
 
         self.total_step = 5000000
+        #好家伙原来total_step搁着呢
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer, num_warmup_steps=self.warmup_steps, num_training_steps=self.total_step
         )
@@ -161,6 +163,14 @@ class PretrainLoop:
 
                 print("pretraining diffusion using data :", data_name)
 
+                # train_data = load_loop_pretrain_data(
+                #     self.args,
+                #     padding_mode='conti_tgt',
+                #     tokenizer=self.tokenizer,
+                #     data_name=data_name,
+                # )
+
+                # Use dataset with mixed tasks
                 train_data = load_loop_pretrain_data(
                     self.args,
                     padding_mode='conti_tgt',
