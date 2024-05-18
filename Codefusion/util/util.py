@@ -1,4 +1,4 @@
-from model.Diffusion_LM import Diffusion_LM, CrossAttention_Diffusion_LM
+from model.Diffusion_LM import CrossAttention_Diffusion_LM
 from diffusion_util import gaussian_diffusion as gd
 from diffusion_util.respace import SpacedDiffusion, space_timesteps
 from diffusion_util.gaussian_diffusion import GaussianDiffusion

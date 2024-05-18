@@ -7,7 +7,7 @@ import json
 from util import logger
 from train_util import dist_util
 import torch
-import torch.distributed as dist
+# import torch.distributed as dist
 from util.util import (
     create_model_and_diffusion,
     args_to_dict,
@@ -65,7 +65,7 @@ def get_arguments():
     parser.add_argument('--data_path', type=str, default='',help='data path')
     parser.add_argument('--data_name', type=str, default='', help='data name')
     # for retrain
-    parser.add_argument('--pre_max_len', type=int, default=512, help='src max len')
+    parser.add_argument('--pre_max_len', type=int, default=128, help='src max len')
     parser.add_argument('--mask_pro', type=float, default=0.3, help='mask pro')
 
 
@@ -91,12 +91,19 @@ def get_arguments():
     parser.add_argument('--seed', type=int, default=101, help='')
 
     # muti-gpu
-    parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
+    parser.add_argument("--local_rank", type=int, default=0, help="For distributed training: local_rank")
     parser.add_argument("--server_ip", type=str, default="", help="For distant debugging.")
     parser.add_argument("--server_port", type=str, default="", help="For distant debugging.")
 
     args = parser.parse_args()
     return args
+    
+    
+#按照训练速度我们最后也是要上分布式训练的
+def setup_myself(args):
+    torch.cuda.set_device(0)
+    device = torch.device("cuda", 0)
+    args.device = device
 
 def setup_env(args):
     if args.local_rank == -1:
@@ -105,7 +112,7 @@ def setup_env(args):
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend="nccl")
+        torch.distributed.init_process_group(backend="nccl",rank=0)
         args.n_gpu = 1
     args.device = device
 
@@ -125,9 +132,9 @@ def main():
     args = get_arguments()
 
     # out dir set
-    if dist.get_rank() == 0:
-        if not os.path.exists(args.checkpoint_path):
-            os.makedirs(args.checkpoint_path)
+    # if dist.get_rank() == 0:
+    if not os.path.exists(args.checkpoint_path):
+        os.makedirs(args.checkpoint_path)
     # dist.barrier()
 
     logger.log(f'saving the hyperparameters to {args.checkpoint_path}/training_args.json')
@@ -135,9 +142,10 @@ def main():
         json.dump(args.__dict__, f, indent=2)
 
     # seed setting
-    # set_seed(args.seed)
+    set_seed(args.seed)
     # dpp setting
-    setup_env(args)
+    setup_myself(args)
+    # setup_env(args)
 
     # logger setting
     log_path = os.path.join(args.checkpoint_path, 'log.txt')

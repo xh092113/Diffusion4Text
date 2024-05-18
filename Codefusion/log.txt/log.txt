@@ -1,0 +1,10 @@
+Logging to Diffusion4Text/Codefusion/log.txt
+the parameter count is 319207610
+load tokenizer...
+pretraining Diffusion LM model using 
+***** there are no checkpoint inDiffusion4Text/Codefusion *****
+***** Running training *****
+  Max steps = %d 5000000
+  Instantaneous batch size per GPU = %d 64
+  Total train batch size (w. parallel, distributed & accumulation) = %d 512
+  Gradient Accumulation steps = %d 8

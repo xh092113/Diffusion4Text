@@ -135,13 +135,13 @@ class PretrainLoop:
             ]
 
         # model to DDP
-        if dist.get_world_size() > 1:
-            self.model = DDP(
-                self.model, device_ids=[dist.get_rank()], output_device=dist.get_rank(), find_unused_parameters=False,
-            )
-        else:
-            print("single GPU is not achieve now")
-            exit(0)
+        # if dist.get_world_size() > 1:
+        #     self.model = DDP(
+        #         self.model, device_ids=[dist.get_rank()], output_device=dist.get_rank(), find_unused_parameters=False,
+        #     )
+        # else:
+        #     print("single GPU is not achieve now")
+        #     exit(0)
 
     def run_loop(self):
         logger.info("***** Running training *****")
@@ -151,7 +151,9 @@ class PretrainLoop:
             "  Total train batch size (w. parallel, distributed & accumulation) = %d",
             self.batch_size
             * self.gradient_accumulation_steps
-            * (dist.get_world_size()),
+            # * (dist.get_world_size()),
+            * 1 ,
+            #单卡训练
         )
         logger.info("  Gradient Accumulation steps = %d", self.gradient_accumulation_steps)
         self.model.zero_grad()
