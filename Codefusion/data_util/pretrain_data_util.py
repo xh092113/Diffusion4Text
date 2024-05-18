@@ -7,13 +7,45 @@ import jsonlines
 import numpy as np
 import random
 from datasets import load_dataset
+import tree_sitter_cpp as tsc
+from tree_sitter import Language, Parser
+
+
+
+
+def tree_to_token_pos(root_node):
+    if (len(root_node.children) == 0 or root_node.type.find('string') != -1) and root_node.type != 'comment':
+        return [{'range': (root_node.start_point, root_node.end_point), 'type':root_node.type}]
+    else:
+        code_tokens = []
+        for child in root_node.children:
+            code_tokens += tree_to_token_pos(child)
+        return code_tokens
+
+
+def pos_to_code_token(index, code):
+    start_point = index[0]
+    end_point = index[1]
+    if start_point[0] == end_point[0]:
+        s = code[start_point[0]][start_point[1]:end_point[1]]
+    else:
+        s = ""
+        s += code[start_point[0]][start_point[1]:]
+        for i in range(start_point[0]+1, end_point[0]):
+            s += code[i]
+        s += code[end_point[0]][:end_point[1]]
+    return s
 
 
 #请在这里添加从这个流式数据中采集下方所需格式的数据, 以及对数据的处理, 包括限制其长度, 剪切成snippet, padding到128长度
+#在这里接入tree-sitter
 #未来可以在这里实现同时返回一个identifier的属性, 中间包含一个列表, 作为Identifier的mask
-def GetDataFromStreaming(name):
+def GetDataFromStreaming(name, tokenizer):
     max_number=100000
     if(name=="onlycpp"):
+        CPP_LANGUAGE = Language("./build/my-languages.so","cpp")
+        parser = Parser()
+        parser.set_language(CPP_LANGUAGE)
         ds = load_dataset(
             "codeparrot/github-code", 
             split="train", 
@@ -22,10 +54,43 @@ def GetDataFromStreaming(name):
             languages=["C++"], 
             filter_languages=True
         )
+        keywords = ['if', 'else', 'while', 'for', 'primitive_type', 'using', 'break', 'continue', 'switch', 'case', 'default', 'return']
+        input_ids = []
+        special_words = [] 
         for step, src in enumerate(ds):
             if(step==max_number):
                 break
-            src['code']
+            code = src['code']
+            tree = parser.parse(
+                bytes(code,"utf8")
+            )
+            root_node = tree.root_node
+
+            # 获取token对应的位置
+            tokens_pos = tree_to_token_pos(root_node)
+            # 获取代码行
+            cpp_loc = code.split('\n')
+            # 获取对应每个位置下的token
+            code_tokens = [{'code': pos_to_code_token(x['range'], cpp_loc), 'type': x['type']} for x in tokens_pos]
+            input_id = []
+            special_word = []  # [start, end)
+            for x in code_tokens:
+                index = tokenizer(x['code'], add_special_tokens=False).input_ids
+                add_keywords = (x['type'] == 'identifier' or x['type'] in keywords)
+                start_id_pos = None
+                end_id_pos = None
+                if add_keywords:
+                    start_id_pos = len(input_id)
+                input_id += index
+                if add_keywords:
+                    end_id_pos = len(input_id)
+                    special_word.append(start_id_pos, end_id_pos)
+            input_ids.append(np.array(input_id))
+            special_words.append(special_word)
+        return input_ids, special_words
+
+
+
 
 
 def load_loop_pretrain_data(args, padding_mode, tokenizer, data_name = None):
@@ -47,8 +112,8 @@ def load_loop_pretrain_data(args, padding_mode, tokenizer, data_name = None):
     elif padding_mode == 'mix_conti_tgt':
         # Mixture of unsupervised code generation and extended CPD
         print("using mixed two pretrain method...")
-        input_id_list=GetDataFromStreaming(data_name)
-        dataset = Pre_dataset_type_mix(input_id_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
+        input_id_list, special_word_list = GetDataFromStreaming(data_name, tokenizer)
+        dataset = Pre_dataset_type_mix(input_id_list, special_word_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'block':
         print("padding block is under realization")
         pass
@@ -247,8 +312,9 @@ class Pre_dataset_type2(Dataset):
 
         return fn
 class Pre_dataset_type_mix(Dataset):
-    def __init__(self, tgt_id, tokenizer, mask_pro=0.3, maxlength=128, mask_mode='random'):
+    def __init__(self, tgt_id, special_word_list, tokenizer, mask_pro=0.3, maxlength=128, mask_mode='random'):
         self.tgt_id = tgt_id
+        self.special_word_list = special_word_list
         self.tokenizer = tokenizer
         self.maxlength = maxlength
         self.mask_pro = mask_pro
@@ -268,18 +334,25 @@ class Pre_dataset_type_mix(Dataset):
 
         if index < self.dataset_len:
             task_type = "CPD"
+            special_words = self.special_word_list[index]
             tgt_example = self.tgt_id[index]
             # src_input_ids = tgt_example.tolist()
             tgt_input_ids = (torch.from_numpy(tgt_example)).long()
             src_input_ids = tgt_input_ids.clone()
-            id_len = torch.nonzero(src_input_ids).shape[0]
+            # id_len = torch.nonzero(src_input_ids).shape[0]
+            special_word_num = len(special_words)
 
             # mask_span_num = int((id_len * self.mask_pro) // self.span_size) + 1
-            mask_span_len = int(id_len * self.mask_pro)
+            # mask_span_len = int(id_len * self.mask_pro)
+            mask_num = int(special_word_num * self.mask_pro)
             # print("mask_span_num:", mask_span_num)
-            mask_index = random.randint(0, id_len-mask_span_len-1)
+            mask_pos = random.shuffle(list(range(special_word_num)))[:mask_num]
+            mask_index = []
+            for pos in mask_pos:
+                mask_index += list(range(special_words[pos][0], special_words[pos][1]))
 
-            tgt_input_ids = src_input_ids.tolist()[mask_index:mask_index+mask_span_len]
+            # tgt_input_ids = src_input_ids.tolist()[mask_index:mask_index+mask_span_len]
+            tgt_input_ids = src_input_ids.tolist()[mask_index]
 
             src_input_ids[mask_index] = self.mask_token_index
 
@@ -291,7 +364,7 @@ class Pre_dataset_type_mix(Dataset):
 
             # del_index = mask_index.tolist()
             # del_index = list(range(mask_index + 1, mask_index + mask_span_len)) #为什么这里起点+1？
-            del_index = list(range(mask_index, mask_index + mask_span_len))
+            del_index = mask_index
             del_index = torch.from_numpy(np.array(del_index))
             retain_id_mask[del_index] = False
             # src_input_ids[mask_id_mask] = self.mask_token_index

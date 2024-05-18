@@ -262,6 +262,7 @@ class PretrainLoop:
         # print("src_input_ids shape:", batch['src_input_ids'].shape)
         # print("tgt_input_ids shape:", batch['tgt_input_ids'].shape)
         unsupervised_mask = torch.tensor([task_type == 'unsupervised_generation' for task_type in batch['task_type']], dtype=torch.bool)
+        
         losses = self.diffusion.training_losses(self.model, batch, t)
 
         if isinstance(self.schedule_sampler, LossAwareSampler):

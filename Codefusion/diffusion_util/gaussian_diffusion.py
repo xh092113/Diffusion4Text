@@ -1436,6 +1436,7 @@ class GaussianDiffusion:
         
         if input_text["task_type"] == "unsupervised_generation":
             # Replace E_s with Gaussian noise in unsupervised generation task
+            # TODO: If we know the shape dimensions of context_hidden, can replace randn_like to randn without running model.encode above.
             context_hidden = th.randn_like(context_hidden)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
