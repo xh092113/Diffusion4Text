@@ -12,7 +12,6 @@ from util.util import (
     create_model_and_diffusion,
     args_to_dict,
 )
-from data_util.pretrain_data_util import load_pretrain_data
 from torch.serialization import default_restore_location
 from train_util.pretrain_util import PretrainLoop
 import collections
@@ -102,7 +101,7 @@ def get_arguments():
 #按照训练速度我们最后也是要上分布式训练的
 def setup_myself(args):
     torch.cuda.set_device(0)
-    device = torch.device("cuda", 0)
+    device = torch.device("cuda", 7)
     args.device = device
 
 def setup_env(args):

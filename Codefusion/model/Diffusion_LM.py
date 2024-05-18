@@ -161,6 +161,10 @@ class CrossAttention_Diffusion_LM(nn.Module):
         )
 
     def get_embeds(self, input_ids):
+        # if torch.max(input_ids) >= 31735:
+        #     print(input_ids.shape)
+        #     print(torch.max(input_ids))
+        #     _ = input()
         return self.word_embedding(input_ids)
 
     def get_logits(self, hidden_repr):

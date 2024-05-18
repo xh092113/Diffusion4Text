@@ -16,11 +16,10 @@ import numpy as np
 from transformers import (
     get_linear_schedule_with_warmup,
 )
-from data_util.pretrain_data_util import load_loop_pretrain_data
+from data_util.pretrain_data_util import load_loop_pretrain_data, Pre_dataset_type_mix
 
 # from text_data_util import Text_Hidden_dataset, Question_dataset, PandQ_dataset
 # from s2s_data_util import S2S_dataset
-from data_util.pretrain_data_util import Pre_dataset, Pre_dataset_type2
 from diffusion_util.resample import LossAwareSampler, UniformSampler
 
 INITIAL_LOG_LOSS_SCALE = 20.0
@@ -171,7 +170,6 @@ class PretrainLoop:
                 #     tokenizer=self.tokenizer,
                 #     data_name=data_name,
                 # )
-
                 # Use dataset with mixed tasks
                 train_data = load_loop_pretrain_data(
                     self.args,
@@ -179,16 +177,22 @@ class PretrainLoop:
                     tokenizer=self.tokenizer,
                     data_name=data_name,
                 )
+                
+                
 
                 # ddp data sample
                 train_sample = DistributedSampler(train_data)
                 train_dataloader = DataLoader(train_data, sampler=train_sample, batch_size=self.batch_size, drop_last=False,
-                                              num_workers=20, collate_fn=Pre_dataset_type2.get_collate_fn())
+                                              num_workers=20, collate_fn=Pre_dataset_type_mix.get_collate_fn())
 
                 # while self.global_step < self.lr_anneal_steps:
 
                 # training for one epoch
-                epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=dist.get_rank() not in [-1, 0])
+                # dist 杀杀杀
+                # dist 杀杀杀
+                # dist 杀杀杀
+                # epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=dist.get_rank() not in [-1, 0])
+                epoch_iterator = tqdm(train_dataloader, desc="Iteration")
                 for step, batch in enumerate(epoch_iterator):
                     self.model.train()
 
@@ -250,7 +254,11 @@ class PretrainLoop:
             torch.save(state._asdict(), ckpt_path)
             logger.info('Saved checkpoint at %s', ckpt_path)
 
-        if dist.get_rank() == 0:
+        # dist 杀杀杀
+        # dist 杀杀杀
+        # dist 杀杀杀
+        # if dist.get_rank() == 0:
+        if True:
             save_checkpoint(0, None)
             for rate, params in zip(self.ema_rate, self.ema_params):
                 save_checkpoint(rate, params)

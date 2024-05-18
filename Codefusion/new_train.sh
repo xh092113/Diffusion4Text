@@ -2,7 +2,7 @@ OUT_DIR="Diffusion4Text/Codefusion"
 DATA_PATH="/Your/pretrain/data/path"
 python -u Diffusion4Text/Codefusion/Genie_Pretrain.py \
 --checkpoint_path=$OUT_DIR \
---model_channels 512 --in_channel 512 --out_channel 512 --vocab_size 32103 \
+--model_channels 512 --in_channel 512 --out_channel 512 --vocab_size 31735 \
 --config_name="bert-base-uncased" --token_emb_type="random" --model_arch="s2s_CAT" \
 --diffusion_steps 1200 --noise_schedule="sqrt" --training_mode="s2s" \
 --schedule_sampler="uniform" --pre_max_len 128 --mask_pro 0.3 --seed 2023 \

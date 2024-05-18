@@ -1423,7 +1423,7 @@ class GaussianDiffusion:
         for s2s
         '''
         q_input_ids = input_text['tgt_input_ids'].long().to(t.device)
-        x_start_mean = model.module.get_embeds(q_input_ids)
+        x_start_mean = model.get_embeds(q_input_ids)
         p_input_ids = input_text['src_input_ids'].long().to(t.device)
         p_attention_mask = input_text['src_attention_mask'].long().to(t.device)
 
@@ -1432,7 +1432,7 @@ class GaussianDiffusion:
             answer_ids = input_text['answer_ids'].long().to(t.device)
             answer_mask = input_text['answer_mask'].long().to(t.device)
 
-        context_hidden = model.encode(input_ids=p_input_ids, attention_mask=p_attention_mask)
+        context_hidden = model.encode(src_input_ids=p_input_ids, src_attention_mask=p_attention_mask)
         
         if input_text["task_type"] == "unsupervised_generation":
             # Replace E_s with Gaussian noise in unsupervised generation task
@@ -1448,7 +1448,7 @@ class GaussianDiffusion:
         if noise is None:
             noise = th.randn_like(x_start)
         x_t = self.q_sample(x_start, t, noise=noise)  # reparametrization trick.
-        get_logits = model.module.get_logits
+        get_logits = model.get_logits
 
         terms = {}
 
