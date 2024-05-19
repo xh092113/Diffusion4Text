@@ -64,8 +64,8 @@ def divide_code_snippets(root_node, node_token_pos_range, code_tokens, max_token
 #在这里接入tree-sitter
 #未来可以在这里实现同时返回一个identifier的属性, 中间包含一个列表, 作为Identifier的mask
 def GetDataFromStreaming(name, tokenizer):
-    max_number=100
-    #调个100方便测后面的东西
+    max_number=10
+    #调个10方便测后面的东西
     if(name=="onlycpp"):
         CPP_LANGUAGE = Language("./build/my-languages.so","cpp")
         parser = Parser()
@@ -127,7 +127,7 @@ def GetDataFromStreaming(name, tokenizer):
                     continue
                 input_ids.append(np.array(input_id))
                 special_words.append(special_word)
-        print(len(input_ids), len(special_words))
+        print("Finish loading dataset from stream")
         return input_ids, special_words
 
 
@@ -233,7 +233,7 @@ class Pre_dataset_type_mix(Dataset):
             # del_index = mask_index.tolist()
             # del_index = list(range(mask_index + 1, mask_index + mask_span_len)) #为什么这里起点+1？
             del_index = mask_index
-            del_index = torch.from_numpy(np.array(del_index))
+            # del_index = torch.from_numpy(np.array(del_index))
             retain_id_mask[del_index] = False
             # src_input_ids[mask_id_mask] = self.mask_token_index
             src_input_ids = src_input_ids[retain_id_mask].tolist()
@@ -275,17 +275,30 @@ class Pre_dataset_type_mix(Dataset):
     def __len__(self):
         return len(self.tgt_id) * 2
 
+    #TODO:把这个同一个batch里的takstype调成一个
     @classmethod
     def get_collate_fn(cls):
         def fn(features):
-            src_tensor = torch.cat([feature[0] for feature in features])
-            # for feature in features:
-            #     print(feature[1].shape)
-            tgt_tensor = torch.cat([feature[1] for feature in features])
-            task_type = [feature[1] for feature in features] # List of str "CPD" or "unsupervised_generation"
+            src_list = []
+            tgt_list = []
+            task_type_list = []
+            for feature in features:
+                if feature[2] == 'CPD':
+                    src_list.append(feature[0])
+                    tgt_list.append(feature[1])
+                    task_type_list.append(feature[2])
+            task_type_split = len(task_type_list)
+            for feature in features:
+                if feature[2] == 'unsupervised_generation':
+                    src_list.append(feature[0])
+                    tgt_list.append(feature[1])
+                    task_type_list.append(feature[2])
+            src_tensor = torch.cat(src_list)
+            tgt_tensor = torch.cat(tgt_list)
+            # task_type = [feature[1] for feature in features] # List of str "CPD" or "unsupervised_generation"
             return { "src_input_ids": src_tensor, "src_attention_mask": (src_tensor != 0).long(),
                      "tgt_input_ids": tgt_tensor, "tgt_attention_mask": (tgt_tensor != 0).long(),
-                      "task_type": task_type }
+                      "task_type": task_type_list, "task_type_split": task_type_split }
 
         return fn
 

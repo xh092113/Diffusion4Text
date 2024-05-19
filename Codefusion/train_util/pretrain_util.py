@@ -26,6 +26,14 @@ INITIAL_LOG_LOSS_SCALE = 20.0
 CheckpointState = collections.namedtuple("CheckpointState",
                                                      ['model_dict', 'optimizer_dict', 'scheduler_dict', 'offset'])
 
+
+def find_param_module(model, param):
+    for name, module in model.named_modules():
+        for param_name, param_tensor in module.named_parameters(recurse=False):
+            if param_tensor is param:
+                return name, param_name, module
+    return None
+
 '''
 TrainLoop
 '''
@@ -86,8 +94,21 @@ class PretrainLoop:
         self.tokenizer = tokenizer
 
         # self.global_batch = self.batch_size * dist.get_world_size()
+        # print("!!!!", self.model.passage_encoder.requires_grad)
+        self.master_params = [p for p in self.model.parameters() if p.requires_grad==True]
+        # # 示例：获取特定参数的组件
+        # param_to_find = self.master_params[0]  # 假设我们想找到第一个参数
+        # result = find_param_module(model, param_to_find)
 
-        self.master_params = list(self.model.parameters())
+        # if result:
+        #     module_name, param_name, module = result
+        #     print(f"Parameter found in module: {module_name}")
+        #     print(f"Parameter name: {param_name}")
+        #     print(f"Module: {module}")
+        # else:
+        #     print("Parameter not found in the model.")
+        # # print([p.requires_grad for p in self.master_params])
+        # exit(0)
         self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
         # self.sync_cuda = th.cuda.is_available()
 
@@ -195,6 +216,9 @@ class PretrainLoop:
                 epoch_iterator = tqdm(train_dataloader, desc="Iteration")
                 for step, batch in enumerate(epoch_iterator):
                     self.model.train()
+                    
+                    # print([p.requires_grad for p in self.master_params])
+                    # exit(0)
 
                     # forward loss
                     self.forward_backward(batch)
@@ -281,6 +305,7 @@ class PretrainLoop:
             )
 
         loss = (losses["loss"] * weights).mean()
+        
         if self.gradient_accumulation_steps > 1:
             loss = loss / self.gradient_accumulation_steps
         log_loss_dict(
@@ -317,10 +342,11 @@ class PretrainLoop:
 
     def _log_grad_norm(self):
         sqsum = 0.0
+        # torch.set_printoptions(precision=1, linewidth=10, threshold=10, edgeitems=1)
         for p in self.master_params:
-            # print(p)
             sqsum += (p.grad ** 2).sum().item()
         logger.logkv_mean("grad_norm", np.sqrt(sqsum))
+        # exit(0)
 
     def log_step(self):
         logger.logkv("step", self.global_step)

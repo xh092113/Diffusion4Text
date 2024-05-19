@@ -14,6 +14,8 @@ import torch as th
 from util.nn import mean_flat
 from util.losses import normal_kl, discretized_text_log_likelihood
 
+import torchviz
+
 
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
@@ -1426,18 +1428,19 @@ class GaussianDiffusion:
         x_start_mean = model.get_embeds(q_input_ids)
         p_input_ids = input_text['src_input_ids'].long().to(t.device)
         p_attention_mask = input_text['src_attention_mask'].long().to(t.device)
+        task_type_split = input_text["task_type_split"]
 
         # for qg
         if "answer_ids" in input_text.keys():
             answer_ids = input_text['answer_ids'].long().to(t.device)
             answer_mask = input_text['answer_mask'].long().to(t.device)
-
-        context_hidden = model.encode(src_input_ids=p_input_ids, src_attention_mask=p_attention_mask)
         
-        if input_text["task_type"] == "unsupervised_generation":
-            # Replace E_s with Gaussian noise in unsupervised generation task
-            # TODO: If we know the shape dimensions of context_hidden, can replace randn_like to randn without running model.encode above.
-            context_hidden = th.randn_like(context_hidden)
+        # Replace E_s with Gaussian noise in unsupervised generation task
+        if task_type_split > 0:
+            context_hidden = model.encode(src_input_ids=p_input_ids[:task_type_split, ...], src_attention_mask=p_attention_mask[:task_type_split, ...])
+            context_hidden = th.concat([context_hidden, th.randn((q_input_ids.size(0) - task_type_split, q_input_ids.size(1), model.hidden_size)).to(t.device)], dim=0) 
+        else:
+            context_hidden = th.randn((q_input_ids.size(0), q_input_ids.size(1), model.hidden_size)).to(t.device)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    th.tensor([0]).to(x_start_mean.device),
@@ -1461,6 +1464,11 @@ class GaussianDiffusion:
                 raise NotImplementedError
             else:
                 model_output = model(x_t, self._scale_timesteps(t), context_hidden)
+                
+            # dot = torchviz.make_dot(model_output, params=dict(model.named_parameters()))
+            # dot.format = 'png'
+            # dot.render('model_graph')
+            # input()
 
             if self.model_var_type in [
                 ModelVarType.LEARNED,

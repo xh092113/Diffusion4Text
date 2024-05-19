@@ -1,5 +1,5 @@
 Logging to Diffusion4Text/Codefusion/log.txt
-the parameter count is 319829879
+the parameter count is 330728679
 load tokenizer...
 pretraining Diffusion LM model using 
 ***** there are no checkpoint inDiffusion4Text/Codefusion *****

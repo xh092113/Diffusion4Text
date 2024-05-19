@@ -65,12 +65,14 @@ class CrossAttention_Diffusion_LM(nn.Module):
         # config = BertConfig.from_pretrained(config_name)
         config = AutoConfig.from_pretrained(config_name)
         config.hidden_dropout_prob = self.dropout
+        self.hidden_size=config.hidden_size
         # print(config)
         self.passage_encoder=T5EncoderModel.from_pretrained(
             "Salesforce/codet5p-220m-bimodal",
             trust_remote_code=True,
         )
-        self.passage_encoder.requires_grad=False
+        for p in self.passage_encoder.parameters():
+            p.requires_grad=False
 
         # trainable embedding layer
         self.word_embedding = nn.Embedding(vocab_size, self.in_channels)
