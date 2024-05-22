@@ -63,6 +63,7 @@ def get_arguments():
     # data args
     parser.add_argument('--data_path', type=str, default='',help='data path')
     parser.add_argument('--data_name', type=str, default='', help='data name')
+    parser.add_argument('--pretrain_data_path', type=str, default='',help='data path')
     # for retrain
     parser.add_argument('--pre_max_len', type=int, default=128, help='src max len')
     parser.add_argument('--mask_pro', type=float, default=0.3, help='mask pro')

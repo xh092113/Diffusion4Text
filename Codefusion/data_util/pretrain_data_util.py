@@ -9,7 +9,7 @@ import random
 from datasets import load_dataset
 import tree_sitter_cpp as tsc
 from tree_sitter import Language, Parser
-
+import json
 
 
 
@@ -63,71 +63,86 @@ def divide_code_snippets(root_node, node_token_pos_range, code_tokens, max_token
 #请在这里添加从这个流式数据中采集下方所需格式的数据, 以及对数据的处理, 包括限制其长度, 剪切成snippet, padding到128长度
 #在这里接入tree-sitter
 #未来可以在这里实现同时返回一个identifier的属性, 中间包含一个列表, 作为Identifier的mask
-def GetDataFromStreaming(name, tokenizer):
-    max_number=10
+def GetDataFromStreaming(name, tokenizer, data_file_path):
+    # max_number=10
     #调个10方便测后面的东西
+    
     if(name=="onlycpp"):
-        CPP_LANGUAGE = Language("./build/my-languages.so","cpp")
-        parser = Parser()
-        parser.set_language(CPP_LANGUAGE)
-        ds = load_dataset(
-            "codeparrot/github-code", 
-            split="train", 
-            streaming=True, 
-            trust_remote_code=True, 
-            languages=["C++"], 
-            filter_languages=True
-        )
-        keywords = ['if', 'else', 'while', 'for', 'primitive_type', 'using', 'break', 'continue', 'switch', 'case', 'default', 'return']
-        input_ids = []
-        special_words = [] 
-        for step, src in enumerate(ds):
-            if(step==max_number):
-                break
-            code = src['code']
-            tree = parser.parse(
-                bytes(code,"utf8")
-            )
-            root_node = tree.root_node
+        try:
+            with open(data_file_path, 'r') as file:
+                print("Directly loading data from previously saved file...")
+                data_dict = json.load(file)
+                input_ids = [np.array(ids) for ids in data_dict['input_ids']]
+                special_words = data_dict['special_words']
+                print("Finish loading dataset from file.")
 
-            node_token_pos_range = {}
-            # 获取token对应的位置
-            tokens_pos = tree_to_token_pos(root_node, 0, node_token_pos_range)
-            # 获取代码行
-            cpp_loc = code.split('\n')
-            # 获取对应每个位置下的token
-            init_code_tokens = [{'code': pos_to_code_token(x['range'], cpp_loc), 'type': x['type']} for x in tokens_pos]
-            max_token_num = 128
-            code_token_list = divide_code_snippets(root_node, node_token_pos_range, init_code_tokens, max_token_num)
-            for code_tokens in code_token_list:
-                # print(len(code_tokens))
-                if (len(code_tokens) < 32):
-                    continue
-                input_id = []
-                special_word = []  # [start, end)
-                # print(len(code_tokens))
-                # print(''.join([x['code'] for x in code_tokens]))
-                # _ = input()
-                if max([len(x['code']) for x in code_tokens], default=0) > 25:
-                    continue
-                for x in code_tokens:
-                    index = tokenizer(x['code'], add_special_tokens=False).input_ids
-                    add_keywords = (x['type'] == 'identifier' or x['type'] in keywords)
-                    start_id_pos = None
-                    end_id_pos = None
-                    if add_keywords:
-                        start_id_pos = len(input_id)
-                    input_id += index
-                    if add_keywords:
-                        end_id_pos = len(input_id)
-                        special_word.append((start_id_pos, end_id_pos))
-                # if len(input_id) > 128:
-                #     print("____WARNING____", len(index))
-                if len(special_word) == 0:
-                    continue
-                input_ids.append(np.array(input_id))
-                special_words.append(special_word)
-        print("Finish loading dataset from stream")
+        except FileNotFoundError:
+            print("Initializing data from stream...")
+            CPP_LANGUAGE = Language("./build/my-languages.so","cpp")
+            parser = Parser()
+            parser.set_language(CPP_LANGUAGE)
+            ds = load_dataset(
+                "codeparrot/github-code", 
+                split="train", 
+                streaming=True, 
+                trust_remote_code=True, 
+                languages=["C++"], 
+                filter_languages=True
+            )
+            keywords = ['if', 'else', 'while', 'for', 'primitive_type', 'using', 'break', 'continue', 'switch', 'case', 'default', 'return']
+            input_ids = []
+            special_words = [] 
+            for step, src in tqdm(enumerate(ds)):
+                # if(step==max_number):
+                #     break
+                code = src['code']
+                tree = parser.parse(
+                    bytes(code,"utf8")
+                )
+                root_node = tree.root_node
+
+                node_token_pos_range = {}
+                # 获取token对应的位置
+                tokens_pos = tree_to_token_pos(root_node, 0, node_token_pos_range)
+                # 获取代码行
+                cpp_loc = code.split('\n')
+                # 获取对应每个位置下的token
+                init_code_tokens = [{'code': pos_to_code_token(x['range'], cpp_loc), 'type': x['type']} for x in tokens_pos]
+                max_token_num = 128
+                code_token_list = divide_code_snippets(root_node, node_token_pos_range, init_code_tokens, max_token_num)
+                for code_tokens in code_token_list:
+                    # print(len(code_tokens))
+                    if (len(code_tokens) < 32):
+                        continue
+                    input_id = []
+                    special_word = []  # [start, end)
+                    # print(len(code_tokens))
+                    # print(''.join([x['code'] for x in code_tokens]))
+                    # _ = input()
+                    if max([len(x['code']) for x in code_tokens], default=0) > 25:
+                        continue
+                    for x in code_tokens:
+                        index = tokenizer(x['code'], add_special_tokens=False).input_ids
+                        add_keywords = (x['type'] == 'identifier' or x['type'] in keywords)
+                        start_id_pos = None
+                        end_id_pos = None
+                        if add_keywords:
+                            start_id_pos = len(input_id)
+                        input_id += index
+                        if add_keywords:
+                            end_id_pos = len(input_id)
+                            special_word.append((start_id_pos, end_id_pos))
+                    # if len(input_id) > 128:
+                    #     print("____WARNING____", len(index))
+                    if len(special_word) == 0:
+                        continue
+                    input_ids.append(np.array(input_id))
+                    special_words.append(special_word)
+            with open(data_file_path, 'w') as file:
+                json.dump({"input_ids": [ids.tolist() for ids in input_ids], "special_words": special_words}, file)
+            print("Finish loading dataset from stream.")
+        except Exception as e:
+            print(f"Error in loading dataset: {e}")
         return input_ids, special_words
 
 
@@ -153,7 +168,8 @@ def load_loop_pretrain_data(args, padding_mode, tokenizer, data_name = None):
     elif padding_mode == 'mix_conti_tgt':
         # Mixture of unsupervised code generation and extended CPD
         print("using mixed two pretrain method...")
-        input_id_list, special_word_list = GetDataFromStreaming(data_name, tokenizer)
+        data_file_path = os.path.join(args.pretrain_data_path, 'pretrain_data.json')
+        input_id_list, special_word_list = GetDataFromStreaming(data_name, tokenizer, data_file_path)
         dataset = Pre_dataset_type_mix(input_id_list, special_word_list, tokenizer, mask_pro=args.mask_pro, maxlength=args.pre_max_len)
     elif padding_mode == 'block':
         print("padding block is under realization")

@@ -24,6 +24,7 @@
   "schedule_sampler": "uniform",
   "data_path": "/Your/pretrain/data/path",
   "data_name": "",
+  "pretrain_data_path": "Diffusion4Text/Codefusion/PretrainData",
   "pre_max_len": 128,
   "mask_pro": 0.3,
   "train_type": "S2S_Diffusion",
